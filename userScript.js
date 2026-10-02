@@ -9,7 +9,7 @@
   if (window.__tttvLoaded) return;
   window.__tttvLoaded = true;
 
-  var VERSION = '0.1.0';
+  var VERSION = '0.1.1';
   var KEY = {
     UP: 38, DOWN: 40, LEFT: 37, RIGHT: 39, OK: 13,
     BACK: 10009, ESC: 27,
@@ -169,7 +169,7 @@
         ? '[data-e2e="feed-navigation-next"], [data-e2e="arrow-down"], button[aria-label*="next video" i]'
         : '[data-e2e="feed-navigation-prev"], [data-e2e="arrow-up"], button[aria-label*="previous video" i]';
       var b = document.querySelector(sel);
-      if (!b) return false;
+      if (!b || b.disabled) return false; // disabled while TikTok's login popup is up
       b.click();
       return true;
     },
