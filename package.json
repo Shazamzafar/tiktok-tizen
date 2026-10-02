@@ -1,0 +1,21 @@
+{
+  "name": "tiktok-tizen",
+  "appName": "TikTok TV",
+  "version": "0.1.0",
+  "description": "TikTok's website as a remote-friendly TV app for Samsung Tizen TVs (TizenBrew module).",
+  "packageType": "mods",
+  "websiteURL": "https://www.tiktok.com/foryou",
+  "main": "userScript.js",
+  "keys": [
+    "MediaPlayPause",
+    "MediaPlay",
+    "MediaPause",
+    "MediaTrackNext",
+    "MediaTrackPrevious",
+    "MediaFastForward",
+    "MediaRewind",
+    "ColorF0Red"
+  ],
+  "author": "Shazamzafar",
+  "license": "MIT"
+}
