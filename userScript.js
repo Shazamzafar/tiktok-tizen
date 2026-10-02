@@ -50,7 +50,7 @@
 
   // ---------- toast ----------
   var toastEl, toastTimer;
-  function toast(text) {
+  function toast(text, ms) {
     if (!document.body) return;
     if (!toastEl) {
       toastEl = document.createElement('div');
@@ -62,7 +62,7 @@
     toastEl.textContent = text;
     toastEl.style.opacity = '1';
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, 1200);
+    toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, ms || 1200);
   }
 
   // ---------- clutter ----------
@@ -80,26 +80,54 @@
     document.head.appendChild(s);
   }
 
-  var CLOSE_SELECTORS = [
-    '[data-e2e="login-modal"] [class*="DivSkip"]',
-    '[data-e2e="login-modal"] [role="button"][class*="Skip"]',
-    'button[aria-label="Close toast"]',
-    '[data-e2e="modal-close-inner-button"]',
-    '[role="dialog"] [aria-label="Close"]',
-    '[role="dialog"] button[aria-label*="close" i]',
-    '[data-e2e="close-button"]'
-  ];
-  function closePopup() {
-    for (var i = 0; i < CLOSE_SELECTORS.length; i++) {
-      var btn = document.querySelector(CLOSE_SELECTORS[i]);
-      if (btn && btn.offsetParent !== null) {
-        btn.click();
-        log('closed popup via', CLOSE_SELECTORS[i]);
-        count('popupsClosed');
-        return true;
-      }
+  // Only exact, known-safe targets. Generic "close" guesses opened TikTok's sign-up flow in testing.
+  function byText(selector, re, root) {
+    var els = (root || document).querySelectorAll(selector);
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].offsetParent !== null && re.test(els[i].textContent.trim())) return els[i];
     }
-    return false;
+    return null;
+  }
+  function loginModal() {
+    var m = document.querySelector('[data-e2e="login-modal"]');
+    return m && m.offsetParent !== null ? m : null;
+  }
+  function closeToasts() {
+    var t = document.querySelector('button[aria-label="Close toast"]');
+    if (t && t.offsetParent !== null) { t.click(); count('toastsClosed'); }
+  }
+  // Login popup: switch it to the QR-code option once so the user can log in from their phone.
+  var qrShownFor = null;
+  function handleLoginModal() {
+    var m = loginModal();
+    if (!m || qrShownFor === m) return;
+    var qr = byText('[role="button"], button, a, div', /^use qr code$/i, m);
+    if (qr) {
+      qr.click();
+      qrShownFor = m;
+      count('loginQrShown');
+      log('login popup: switched to QR code');
+      toast('Scan the QR code with the TikTok app on your phone · Back = skip', 8000);
+    }
+  }
+  var sendingEscape = false;
+  function closePopup() {
+    var m = loginModal();
+    if (!m) return false;
+    var container = m.closest('[class*="Modal"]') || m.parentElement.parentElement || document;
+    var skip = byText('[role="button"], button, div', /^skip$/i, container);
+    if (skip) {
+      skip.click();
+      count('loginSkipped');
+      log('login popup: skipped');
+    } else {
+      sendingEscape = true;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+      sendingEscape = false;
+      count('loginEscape');
+      log('login popup: no skip button, sent Escape');
+    }
+    return true;
   }
 
   // ---------- video helpers ----------
@@ -241,10 +269,11 @@
   ACTIONS[KEY.RED] = ['stats', toggleStats];
 
   document.addEventListener('keydown', function (e) {
+    if (sendingEscape) return; // our own Escape is meant for TikTok's popup
     var t = e.target;
-    // Let typing work in search/login fields, except Back which should still close things.
+    // Let typing and the login popup get the keys, except Back which should still close things.
     var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-    if (typing && e.keyCode !== KEY.BACK) return;
+    if ((typing || loginModal()) && e.keyCode !== KEY.BACK) { count('key.passedToPopup'); return; }
     var action = ACTIONS[e.keyCode];
     if (!action) { count('key.unmapped'); return; }
     e.preventDefault();
@@ -256,12 +285,13 @@
   // ---------- start ----------
   function init() {
     injectCss();
-    closePopup();
+    closeToasts();
+    handleLoginModal();
     log('loaded v' + VERSION, 'launch #' + stats.launches);
-    toast('TikTok TV ready  ·  ▲▼ swipe  ·  OK play/pause');
+    toast('TikTok TV ready  ·  ▲▼ swipe  ·  OK play/pause', 4000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
-  // TikTok is a single-page app that re-renders; keep CSS present and dismiss popups as they appear.
-  setInterval(function () { injectCss(); closePopup(); }, 3000);
+  // TikTok is a single-page app that re-renders; keep CSS present and handle popups as they appear.
+  setInterval(function () { injectCss(); closeToasts(); handleLoginModal(); }, 2000);
 })();
